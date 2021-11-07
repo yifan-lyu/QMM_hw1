@@ -76,7 +76,7 @@ beta = double(solve(eqn, beta)); % solve the expression as beta = ...
 fprintf("\n discount factor = %.2f \n",beta);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Q2: gini coefficient (under A shock) - household problem
+% Q2: gini coefficient (under A shock)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % guess a capital level: since time endowment is normalised to 1, K/L = K
@@ -91,14 +91,9 @@ L = 1;
 % start infinite period EGM by specifying next period asset grid
 a1 = repmat(agrid,[nA*ny*nK,1]); % state is A*S*K
 
-% iteration
+% value function iteration
 distance  = inf;
-tol_iter = 0;
 
-
-while distance > tol_v
-
-tol_iter = tol_iter + 1;
 % guess next period Kprime by guessing regression coefficient B first
 B = [zeros(nA,1), ones(nA,1)]; % nA*2 matrix of regressio coefficient
 Kprime = exp(B(:,1) + B(:,2).*log(  repmat(Kgrid,[nA,1])  )); % na*length(Kgrid)
@@ -108,7 +103,9 @@ w1 = (1-alpha)*At.*(Kprime/L).^(alpha);
 r1 = (alpha)*At.*(Kprime/L).^(alpha-1);
 
 
-
+tol_iter = 0;
+while distance > tol_v
+tol_iter = tol_iter + 1;
 a0 = a1;
 % for each of the capital level K_t, A, S, calculate c and a_t, and compare
 % with the initial guess until distance is small enough
@@ -130,7 +127,7 @@ for j = 1:nA
             % note a_t+1 is agrid, a_t+2 is just g{i}(agrid)
             % the row of marg_u_plus is state A,S,K combination, column is
             % a grid
-            marg_u_plus(iter,:) = marg_ut( agrid*(1+r1(j,k))...
+            marg_u_plus(iter,:) = marg_ut( agrid*( 1+r1(j,k) )...
                 + y(i)*w1(j,k) - max(g(agrid), a_lbar) );
             % A = 1, S = 1, K = 1
             % A = 1, S = 1, K = 2
@@ -173,11 +170,7 @@ end
 distance = max( abs(a0 - a1),[],'all');
 end
 
-fprintf('convergence takes %.0f iterations, distance = %.9f',tol_iter, distance);
-
-
-%plot
-%plot(a1(1,:),c(1,:));
+fprintf('convergence takes %.0f iterations, distance = %.9f',tol_iter, dist);
 
 
 %}
