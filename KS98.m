@@ -20,7 +20,7 @@ inv_marg_ut = @(u) u.^(-1/gamma);       % inverse marginal utility: CRRA
 
 % household
 a_lbar  = 0;      % borrowing constriant
-a_bar   = 24;     % maximum asset
+a_bar   = 20;     % maximum asset
 num_grid  = 50;  % number of grid for asset
 %agrid = getGrid(a_lbar, a_bar, num_grid, 'logsteps'); % log spaced asset grid
 agrid = linspace(a_lbar, a_bar, num_grid); % log spaced asset grid
@@ -29,13 +29,16 @@ clear a_bar
 
 % income process
 rho   = 0.95;         % AR1 persistence
-ny    = 5;            % size of income grid
+ny    = 2;            % size of income grid
 sigma = sqrt(0.015);  % AR1 standard deviation
 w = 0.5 + rho/4;      % weight
 sigma_Z = sigma/sqrt(1-rho^2);
 base_sigma = w*sigma + (1-w)*sigma_Z;
 [sj,P_S] = tauchenHussey(ny,1,rho,sigma,base_sigma); % Markov appox, assume mean zero
 y = exp(sj)';         % permanent income process: 1*5
+% replication
+y = [0.05,1];
+
 clear w sigma_Z base_sigma sj
 
 % firm side with technology shock
@@ -50,6 +53,10 @@ sigma_Z = sigma_A/sqrt(1-rho_A^2);
 base_sigma = w*sigma_A + (1-w)*sigma_Z;
 [logA,P_A] = tauchenHussey(nA,-sigma_A^2/2,rho_A,sigma_A,base_sigma); % Markov appox, assume mean zero
 At = exp(logA);      % productivity process
+% replication
+At = [0.08; 1.02];
+P_A = [1-1/8, 1/8; 1/8, 1-1/8];
+
 clear w sigma_Z base_sigma sj logA
 
 if unique(At) == 1
@@ -81,8 +88,8 @@ fprintf("\n discount factor = %.2f \n",beta);
 
 % guess a capital level: since time endowment is normalised to 1, K/L = K
 nK = 10; % number of total capital grid
-Kgrid = linspace(30,50,nK);
-L = 1;
+Kgrid = linspace(150,250,nK); % capital grid
+L = 1; % time endowment
 %w = (1-alpha)*At.*(Kgrid/L).^(alpha);
 %r = (alpha)*At.*(Kgrid/L).^(alpha-1);
     % r = MPK - delta ??
@@ -121,17 +128,18 @@ for j = 1:nA
             % create interpolant (policy function) ,g
             % it is a mapping from a_t (which is a1) to a_t+1, given state A and S today
             [x,ia] = unique(a1(iter,:));
-            g = griddedInterpolant(x,agrid(ia),'linear','pchip');
+            g{j,i,k} = griddedInterpolant(x,agrid(ia),'linear','pchip');
+
             % w and r is from period t, w1 r1 from period t+1, (both scalar)
-            w = (1-alpha)*At(j)*(Kgrid(k)/L).^(alpha);
-            r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1);
+            %w = (1-alpha)*At(j)*(Kgrid(k)/L).^(alpha);
+            %r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1);
     
             % calculate marginal utility
             % note a_t+1 is agrid, a_t+2 is just g{i}(agrid)
             % the row of marg_u_plus is state A,S,K combination, column is
             % a grid
             marg_u_plus(iter,:) = marg_ut( agrid*(1+r1(j,k))...
-                + y(i)*w1(j,k) - max(g(agrid), a_lbar) );
+                + y(i)*w1(j,k) - max(g{j,i,k}(agrid), a_lbar) );
             % A = 1, S = 1, K = 1
             % A = 1, S = 1, K = 2
             % ...
@@ -158,12 +166,13 @@ for j = 1:nA
             c(iter,:) = inv_marg_ut(beta*(1+r1(j,k))*ave_marg_u_plus(i+ny*(j-1),:));
             
             % back out a_t using this period budget constraint
+            % w and r is from period t, w1 r1 from period t+1, (both scalar)
             w = (1-alpha)*At(j)*(Kgrid(k)/L).^(alpha); % this is inefficient
             r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1);
 
             a_temp = (c(iter,:)+agrid - y(i)*w)/(1+r);
             % no negative asset
-            %a_temp(a_temp<0) = 0;
+            a_temp(a_temp<0) = 0;
             a1(iter,:) = a_temp;
 
         end
@@ -177,32 +186,13 @@ fprintf('convergence takes %.0f iterations, distance = %.9f',tol_iter, distance)
 
 
 %plot
-%plot(a1(1,:),c(1,:));
+%plot(a1(11,:),c(11,:),'linewidth',1.5);
 
-
-%}
-%{
-for s = 1:ny % y is 5 income states
-    for j = 1:nA % At is 2 technology state
-        z = At(j);
-
-        for l = 1:nK % Kgrid is 10 total capital states
-            K = Kgrid(l);
-
-            % note that w and r only depends on At and Kgrid
-            w = w1(j,l);
-            r = r1(j,l);
-            
-
-
-        end
-    end
-end
-%}
-
-
-
-
+model.figplot(agrid, max(g{1,1,5}(agrid),a_lbar));
+hold on;
+model.figplot(agrid, max(g{1,2,5}(agrid),a_lbar));
+model.figplot(agrid, max(g{2,1,5}(agrid),a_lbar));
+model.figplot(agrid, max(g{2,2,5}(agrid),a_lbar));
 
 %{
 % possible combination of asset and income
