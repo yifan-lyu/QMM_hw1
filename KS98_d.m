@@ -54,8 +54,8 @@ base_sigma = w*sigma_A + (1-w)*sigma_Z;
 [logA,P_A] = tauchenHussey(nA,-sigma_A^2/2,rho_A,sigma_A,base_sigma); % Markov appox, assume mean zero
 At = exp(logA);      % productivity process
 % replication
-At = [0.98; 1.02];
-P_A = [1-1/8, 1/8; 1/8, 1-1/8];
+%At = [0.98; 1.02];
+%P_A = [1-1/8, 1/8; 1/8, 1-1/8];
 
 clear w sigma_Z base_sigma sj logA
 
@@ -68,10 +68,12 @@ end
 %F = @(K,L) At*K.^alpha.*L.^(1-alpha); % production function
 
 % joint transition matrix of A and S
-PP = [0.525, 0.35, 0.03125, 0.09375;
-      0.038889, 0.836111, 0.002083, 0.122917;
-      0.09375, 0.03125, 0.291667, 0.583333;
-      0.009115, 0.115885, 0.024306, 0.850694];
+% joint transition matrix of A and S
+PP = kron(P_A, P_S);
+%PP = [0.525, 0.35, 0.03125, 0.09375;
+%      0.038889, 0.836111, 0.002083, 0.122917;
+%      0.09375, 0.03125, 0.291667, 0.583333;
+%      0.009115, 0.115885, 0.024306, 0.850694];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Q1: find beta
@@ -122,6 +124,7 @@ a0 = a1;
 iter = 0;
 c = nan(nA*ny*nK,num_grid);
 marg_u_plus = nan(ny*nA*nK,num_grid);
+g = cell(nA,ny,nK);
 for i = 1:ny
     for j = 1:nA
         for k = 1:nK
@@ -129,7 +132,7 @@ for i = 1:ny
             % create interpolant (policy function) ,g
             % it is a mapping from a_t (which is a1) to a_t+1, given state A and S today
             %[x,ia] = unique(a1(iter,:));
-            %g{i,j,k} = griddedInterpolant(x,agrid(ia),'linear','pchip');
+            %g{i,j,k} = griddedInterpolant(x,agrid(ia),'linear','linear');
             g{i,j,k} = griddedInterpolant(a1(iter,:),agrid,'linear','linear');
         end
     end
@@ -162,9 +165,9 @@ for i = 1:ny
             r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1);
             
             ave_marg_u_plus=0;
-            for o = 1:nA*ny
-                ind1 = floor((o-1)/2)+1; % 1,1,2,2,3,3,...
-                ind2 = rem((o-1),2)+1;   % 1,2,1,2,1,2,...
+            for o = 1:nA*ny % state in tomorrow: 2*5
+                ind1 = floor((o-1)/ny)+1; % 1,1,1,1,1,2,2,2,2,2
+                ind2 = rem((o-1),ny)+1;   % 1,2,3,4,5,1,2,3,4,5
                 c_plus = agrid*(1+r1(ind1,k)) + y(ind2)*w1(ind1,k) - max(g{ind2,ind1,k}(agrid),a_lbar);
                 ave_marg_u_plus = ave_marg_u_plus + PP(i+(j-1)*2,o)*marg_ut(c_plus);
             end
@@ -187,7 +190,7 @@ end
 
 distance = max( abs(a0 - a1),[],'all');
 
-if rem(tol_iter,50) == 0
+if rem(tol_iter,100) == 0
     fprintf('number of iteration reached %.0f, distance = %.9f \n',tol_iter, distance);
 end
 
@@ -198,9 +201,13 @@ fprintf('convergence takes %.0f iterations, distance = %.9f',tol_iter, distance)
 
 %plot
 %plot(a1(11,:),c(11,:),'linewidth',1.5);
-
 model.figplot(agrid, max(g{1,1,5}(agrid),a_lbar));
 hold on;
 model.figplot(agrid, max(g{1,2,5}(agrid),a_lbar));
 model.figplot(agrid, max(g{2,1,5}(agrid),a_lbar));
 model.figplot(agrid, max(g{2,2,5}(agrid),a_lbar));
+plot(agrid,agrid,'--b','linewidth',1);
+
+
+
+
