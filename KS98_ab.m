@@ -3,7 +3,7 @@
 % Yifan Lyu
 % Stockholm School of Economics
 % 2nd Nov, 2021
-% solved with partially vectorised EGM
+% solved with value function iteration
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear; clc; tic; warning off;
@@ -21,7 +21,7 @@ inv_marg_ut = @(u) u.^(-1/gamma);       % inverse marginal utility: CRRA
 % household
 a_lbar  = 0;      % borrowing constriant
 a_bar   = 24;     % maximum asset
-num_grid  = 300;  % number of grid for asset
+num_grid  = 100;  % number of grid for asset
 %agrid = getGrid(a_lbar, a_bar, num_grid, 'logsteps'); % log spaced asset grid
 agrid = linspace(a_lbar, a_bar, num_grid); % log spaced asset grid
 tol_v   = 1e-08;  % value function tolerance
@@ -81,16 +81,17 @@ fprintf("\n single agent economy: discount factor = %.2f, interest rate = %.3f \
 % given steady state captial, find discount factor
 K_ss = 2.5^(1/(1-alpha));
 options = optimset('TolX',1e-06);
-beta_final = fzero(@(beta) findK(K_ss,beta), beta_single, options);
-[~,lambda,a_plus,r_final] =findK(K_ss,beta_final);
-fprintf("\n heterogenuous agent economy: discount factor = %.2f, interest rate = %.3f \n",beta_final, r_final);
+%beta_final = fzero(@(beta) findK(K_ss,beta), beta_single, options);
+%[~,lambda,a_plus,r_final] =findK(K_ss,beta_final);
+findK(4.1858,0.9052);
+%fprintf("\n heterogenuous agent economy: discount factor = %.2f, interest rate = %.3f \n",beta_final, r_final);
 
 toc;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Q2: gini coefficient in Aiyagari model
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Gini(a_plus',lambda')
+%Gini(a_plus',lambda')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Q3: AKM 18
@@ -152,7 +153,7 @@ c_opt  = (1+r)*Amat + Ymat - a_plus;
 
 % given optimal policy, compute stationary distribution: lambda = lambda*P
 
-method = 1;
+method = 3;
 % method 1 (from Kieran)
 if method == 1
 Q = zeros(ny*num_grid);
@@ -165,13 +166,12 @@ for j=1:ny
     end
 end
 
-
 elseif method == 2
-% method 2: 
-ns = numel(Amat); % 300
-A = zeros(ns,num_grid);
-Q = zeros(ns,ns); %300*300
-PPP = kron(PP,ones(num_grid,1)); % 300*3
+% method 2: (from Edmund)
+ns = numel(Amat); % 500
+A = zeros(ns,num_grid); %500*100
+Q = zeros(ns,ns); %500*500
+PPP = kron(PP,ones(num_grid,1)); % 500*5
 
 for s=1:ns
     A(s,:) = (agrid==a_plus(s));  % puts a to 1 if a_plus =  future asset grid a
@@ -180,6 +180,12 @@ for s=1:ns
     % 1*300
 end
 
+elseif method == 3 % (from myself) no loop, very fast
+ns = numel(Amat); % 500, total state number
+A_aug  = repmat(agrid,[ns,ny]); % augmented asset grid, 500*500
+A   = (A_aug == a_plus([1:ns])); % 500*500, augmented income transition matrix
+PPP = kron(PP,ones(num_grid));  % 500*500, augmented prob transition matrix
+Q   = A.*PPP;
 end
 
 [eig_vectors,eig_values] = eig(Q');

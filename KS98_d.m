@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% K-S98 & B-K-M18, QMM II PS1
+% K-S98 & B-K-M18, QMM II PS1 - Q4
 % Yifan Lyu
 % Stockholm School of Economics
 % 2nd Nov, 2021
@@ -24,12 +24,12 @@ a_bar   = 20;     % maximum asset
 num_grid  = 50;  % number of grid for asset
 %agrid = getGrid(a_lbar, a_bar, num_grid, 'logsteps'); % log spaced asset grid
 agrid = linspace(a_lbar, a_bar, num_grid); % log spaced asset grid
-tol_v   = 1e-06;  % value function tolerance
+tol_v   = 1e-04;  % value function tolerance
 clear a_bar
 
 % income process
 rho   = 0.95;         % AR1 persistence
-ny    = 2;            % size of income grid
+ny    = 5;            % size of income grid
 sigma = sqrt(0.015);  % AR1 standard deviation
 w = 0.5 + rho/4;      % weight
 sigma_Z = sigma/sqrt(1-rho^2);
@@ -37,12 +37,12 @@ base_sigma = w*sigma + (1-w)*sigma_Z;
 [sj,P_S] = tauchenHussey(ny,1,rho,sigma,base_sigma); % Markov appox, assume mean zero
 y = exp(sj)';         % permanent income process: 1*5
 % replication
-y = [0.05,1];
+%y = [0.05,1];
 
 clear w sigma_Z base_sigma sj
 
 % firm side with technology shock
-delta = 0.025;         % depreciation
+delta = 0.025;        % depreciation
 alpha = 0.36;         % factor share of capital
 rho_A = 0.90;         % AR1 persistence
 
@@ -75,28 +75,18 @@ PP = kron(P_A, P_S);
 %      0.09375, 0.03125, 0.291667, 0.583333;
 %      0.009115, 0.115885, 0.024306, 0.850694];
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Q1: find beta
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%fprintf("\n %.2f",y);
-
-syms beta % LHS is k_ss, RHS from firms and hh stead state condition
-eqn = 2.5^(1/(1-alpha)) == ((1/beta - 1 + delta) / alpha)^(1/(alpha-1));
-beta = double(solve(eqn, beta)); % solve the expression as beta = ...
-
-fprintf("\n discount factor = %.2f \n",beta);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Q2: gini coefficient (under A shock) - household problem
+% Q4: AK98
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-beta = 0.99;
+beta = 0.94;
 % guess a capital level: since time endowment is normalised to 1, K/L = K
-nK = 10; % number of total capital grid
-Kgrid = linspace(150,250,nK); % capital grid
+nK = 30; % number of total capital grid
+%Kgrid = linspace(150,250,nK); % capital grid
+Kgrid = linspace(1,200,nK); % capital grid
 L = 1; % time endowment
 %w = (1-alpha)*At.*(Kgrid/L).^(alpha);
-%r = (alpha)*At.*(Kgrid/L).^(alpha-1);
-    % r = MPK - delta ??
+%r = (alpha)*At.*(Kgrid/L).^(alpha-1) - delta;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % start infinite period EGM by specifying next period asset grid
@@ -104,36 +94,44 @@ a1 = repmat(agrid,[nA*ny*nK,1]); % state is A*S*K
 
 % guess next period Kprime by guessing regression coefficient B first
 B = [zeros(nA,1), ones(nA,1)]; % nA*2 matrix of regressio coefficient
+%[alpha_b, beta_b]
+%[alpha_g, beta_g]
+%B = [2.5,  0.93
+%     2.4,  0.94];
 Kprime = exp(B(:,1) + B(:,2).*log(  repmat(Kgrid,[nA,1])  )); % na*length(Kgrid)
 
 % obtain a new set of w(Kprime,At) and r(Kprice, At)
 w1 = (1-alpha)*At.*(Kprime/L).^(alpha);
-r1 = (alpha)*At.*(Kprime/L).^(alpha-1);
+r1 = (alpha)*At.*(Kprime/L).^(alpha-1) - delta;
 
 
 % iteration
 distance  = inf;
+distance0 = inf;
 tol_iter = 0;
 
 while distance > tol_v
 tol_iter = tol_iter + 1;
 a0 = a1;
+% NOTE: a0 and a1 are both this period asset
+% agrid is next period asset
+
 
 % for each of the capital level K_t, A, S, calculate c and a_t, and compare
 % with the initial guess until distance is small enough
 iter = 0;
 c = nan(nA*ny*nK,num_grid);
 marg_u_plus = nan(ny*nA*nK,num_grid);
-g = cell(nA,ny,nK);
-for i = 1:ny
-    for j = 1:nA
-        for k = 1:nK
+g = cell(ny,nA,nK);
+for i = 1:ny % income state
+    for j = 1:nA % technology state
+        for k = 1:nK % total capital state
             iter = iter+1;
-            % create interpolant (policy function) ,g
+            % create interpolant (policy function) ,g, and keep unique grid
             % it is a mapping from a_t (which is a1) to a_t+1, given state A and S today
-            %[x,ia] = unique(a1(iter,:));
-            %g{i,j,k} = griddedInterpolant(x,agrid(ia),'linear','linear');
-            g{i,j,k} = griddedInterpolant(a1(iter,:),agrid,'linear','linear');
+            [x,ia] = unique(a1(iter,:));
+            g{i,j,k} = griddedInterpolant(x,agrid(ia),'linear','linear');
+            %g{i,j,k} = griddedInterpolant(a1(iter,:),agrid,'linear','linear');
         end
     end
 end
@@ -153,61 +151,154 @@ for i = 1:ny
             % a grid
             marg_u_plus(iter,:) = marg_ut( agrid*(1+r1(j,k))...
                 + y(i)*w1(j,k) - max(g{i,j,k}(agrid), a_lbar) );
-            % A = 1, S = 1, K = 1
-            % A = 1, S = 1, K = 2
+            % S = 1, A = 1, K = 1
+            % S = 1, A = 1, K = 2
             % ...
-            % A = 1, S = 2, K = 1
-            % A = 1, S = 2, K = 2
+            % S = 1, A = 2, K = 1
+            % S = 1, A = 2, K = 2
             % ...
             % back out a_t using this period budget constraint
             % w and r is from period t, w1 r1 from period t+1, (both scalar)
             w = (1-alpha)*At(j)*(Kgrid(k)/L).^(alpha); % this is inefficient
-            r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1);
+            r = (alpha)*At(j)*(Kgrid(k)/L).^(alpha-1) - delta;
             
             ave_marg_u_plus=0;
             for o = 1:nA*ny % state in tomorrow: 2*5
-                ind1 = floor((o-1)/ny)+1; % 1,1,1,1,1,2,2,2,2,2
-                ind2 = rem((o-1),ny)+1;   % 1,2,3,4,5,1,2,3,4,5
+                ind1 = floor((o-1)/ny)+1; % 1,1,1,1,1,2,2,2,2,2 -> A_t+1
+                ind2 = rem((o-1),ny)+1;   % 1,2,3,4,5,1,2,3,4,5 -> S_t+1
                 c_plus = agrid*(1+r1(ind1,k)) + y(ind2)*w1(ind1,k) - max(g{ind2,ind1,k}(agrid),a_lbar);
+                % pay particular attention to PP, wherein S state change first, 
+                % then A state change after S state is exhausted
                 ave_marg_u_plus = ave_marg_u_plus + PP(i+(j-1)*2,o)*marg_ut(c_plus);
             end
 
             c(iter,:) = inv_marg_ut(beta*(1+r1(j,k))*ave_marg_u_plus);
             a_temp = (c(iter,:)+ agrid - y(i)*w)/(1+r);
             % no negative asset
+            %assert(all(a_temp>=0),'check a_temp');
             %a_temp(a_temp<0) = 0;
             a1(iter,:) = a_temp;
-
         end
     end
 end
 
-% calculate ave_marg_plus by averaging transition prob
-%ave_marg_u_plus = nan(nA*ny,num_grid);
-%for l = 1:nA*ny
-%    ave_marg_u_plus(l,:) = kron(PP(l,:),ones(1,nK))*marg_u_plus;
-%end
-
 distance = max( abs(a0 - a1),[],'all');
+%assert(distance0>distance,'VFI DOES NOT CONVERGE!');
+distance0 = distance;
 
-if rem(tol_iter,100) == 0
+if rem(tol_iter,50) == 0
+    % report at every 100 iteration
     fprintf('number of iteration reached %.0f, distance = %.9f \n',tol_iter, distance);
 end
 
-end
+end % end of the while loop
+fprintf('convergence takes %.0f iterations, distance = %.9f \n',tol_iter, distance);
 
-fprintf('convergence takes %.0f iterations, distance = %.9f',tol_iter, distance);
+% recover policy function: a'{y,s,K}(agrid)
+r = (alpha)*At.*(Kgrid/L).^(alpha-1) - delta;
+w = (1-alpha)*At.*(Kgrid/L).^(alpha);
+
+sol.a_plus = cell(ny,nA,nK);
+sol.c      = cell(ny,nA,nK);
+for i = 1:ny
+    for j = 1:nA
+        for k = 1:nK
+sol.a_plus{i,j,k} = max(g{i,j,k}(agrid),a_lbar);
+sol.c{i,j,k}      = w(j,k)*y(i) + (1+r(j,k))*agrid - sol.a_plus{i,j,k};
+assert(all(sol.c{i,j,k}>=0),'consumption is negative!')
+        end
+    end
+end
 
 
 %plot
-%plot(a1(11,:),c(11,:),'linewidth',1.5);
-model.figplot(agrid, max(g{1,1,5}(agrid),a_lbar));
-hold on;
-model.figplot(agrid, max(g{1,2,5}(agrid),a_lbar));
-model.figplot(agrid, max(g{2,1,5}(agrid),a_lbar));
-model.figplot(agrid, max(g{2,2,5}(agrid),a_lbar));
-plot(agrid,agrid,'--b','linewidth',1);
 
+model.figplot(agrid, sol.a_plus{1,1,5});
+hold on;
+model.figplot(agrid, sol.a_plus{1,2,5});
+model.figplot(agrid, sol.a_plus{5,1,5});
+model.figplot(agrid, sol.a_plus{5,2,5});
+plot(agrid,agrid,'--b','linewidth',1);
+legend('low income, A_b','low income, A_g','high income, A_b','high income, A_g');
+title('optimal policy function under mean total capital');
+%}
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% simulation:
+% guess a initial capital level
+K_ss = ((1/beta - 1 + delta) / alpha)^(1/(alpha-1));
+[~,sim.K_index] = min(abs(K_ss - Kgrid)); 
+
+% find stationary distribution
+T = 10^3;  % number of periods
+I = 10^3;  % number of individuals
+rng(1234); % set seed
+
+% initialize variables
+sim.at      = [K_ss*ones(I,1),nan(I,T)];
+sim.yt      = [y(2)*ones(I,1),nan(I,T-1)];
+sim.ct      = nan(I,T);
+sim.rand_A  = rand(1,T);
+sim.rand_S  = rand(I,T);
+sim.w       = nan(1,T);
+sim.A       = nan(1,T); % state index of technology
+sim.A(1) = sum(( sim.rand_A(1) > cumsum(P_A(1,:)) )) + 1;
+sim.S       = nan(I,T); % state index of income
+sim.S(:,1)  = kron([1:ny]',ones(T/ny,1));
+
+sim.K       = [K_ss, nan(1,T-1)];
+sim.r       = nan(1,T);
+sim.r(1)    = (alpha)*At(1)*(sim.K(1)/L).^(alpha-1) - delta;
+sim.w(1)    = (1-alpha)*At(1)*(sim.K(1)/L).^(alpha);
+
+
+% for t = 1, classify state in At and St
+for t = 1:T
+sim.A(t+1) = sum(( sim.rand_A(t) > cumsum(P_A(sim.A(t),:)) )) + 1;
+    for i = 1:I
+    sim.S(i,t+1) = sum(( sim.rand_S(i,t) > cumsum(P_S(sim.S(i,t),:)) )) + 1;
+    end
+end
+
+fprintf('simulation starts')
+for t = 1:T
+    for i = 1:I
+    % update next period total capital
+    
+    sim.at(i,t+1) = max( g{sim.S(i,t),sim.A(t),sim.K_index(t)}(sim.at(i,t)), a_lbar);
+    sim.yt(i,t+1) = y(sim.S(i,t+1));
+    sim.ct(i,t)   = sim.w(t)*sim.yt(i,t) + (1+sim.r(t))*sim.at(i,t) - sim.at(i,t+1);
+    end
+    sim.K(t+1) = mean(sim.at(:,t+1));
+    [~, sim.K_index(t+1)] = min(abs(sim.K(t+1) - Kgrid)); 
+    sim.r(t+1) = (alpha)*At(sim.A(t+1))*(sim.K(t+1)/L).^(alpha-1) - delta;
+    sim.w(t+1) = (1-alpha)*At(sim.A(t+1))*(sim.K(t+1)/L).^(alpha);
+    
+end
+fprintf('\n simulation is over \n')
+
+% plot aggregate capital time series
+%plot(1:length(sim.K), sim.K,'-b','linewidth',0.5);
+
+% regression (only for 2 state in At)
+% pick out good state and bad state index
+good = (sim.A == 2);
+good(end) = 0; % drop 1001 period obs.
+good_plus = logical([0,good(1:end-1)]);
+
+bad  = (sim.A == 1);
+good(end) = 0; % drop 1001 period obs.
+bad_plus = logical([0,bad(1:end-1)]);
+
+sim.Kgood = sim.K(good);
+sim.Kgood_plus = sim.K(good_plus);
+sim.Kbad = sim.K(bad);
+sim.Kbad_plus = sim.K(bad_plus);
+
+B_plus(:,1) = regress(sim.Kgood_plus',[ones(length(sim.Kgood),1),sim.Kgood']);
+B_plus(:,2) = regress(sim.Kbad_plus',[ones(length(sim.Kbad),1),sim.Kbad']);
+B_plus = B_plus'
+distance = max( abs(B_plus - B) ,[],'all')
 
 
 
