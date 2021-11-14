@@ -20,7 +20,7 @@ inv_marg_ut = @(u) u.^(-1/gamma);       % inverse marginal utility: CRRA
 
 % household
 a_lbar  = 0;      % borrowing constriant
-a_bar   = 24;     % maximum asset
+a_bar   = 24;    % maximum asset
 num_grid  = 100;  % number of grid for asset
 %agrid = getGrid(a_lbar, a_bar, num_grid, 'logsteps'); % log spaced asset grid
 agrid = linspace(a_lbar, a_bar, num_grid); % log spaced asset grid
@@ -29,7 +29,7 @@ clear a_bar
 
 % income process
 rho   = 0.95;         % AR1 persistence
-ny    = 5;            % size of income grid
+ny    = 3;            % size of income grid
 sigma = sqrt(0.015);  % AR1 standard deviation
 w = 0.5 + rho/4;      % weight
 sigma_Z = sigma/sqrt(1-rho^2);
@@ -76,29 +76,31 @@ syms beta % LHS is k_ss, RHS from firms and hh stead state condition
 eqn = 2.5^(1/(1-alpha)) == ((1/beta - 1 + delta) / alpha)^(1/(alpha-1));
 beta_single = double(solve(eqn, beta)); % solve the expression as beta = ...
 r_single = 1/beta_single - 1 + delta;
-fprintf("\n single agent economy: discount factor = %.2f, interest rate = %.3f \n",beta_single, r_single);
+fprintf("\n single agent economy: discount factor = %.5f, interest rate = %.3f \n",beta_single, r_single);
 
 % given steady state captial, find discount factor
 K_ss = 2.5^(1/(1-alpha));
 options = optimset('TolX',1e-06);
-%beta_final = fzero(@(beta) findK(K_ss,beta), beta_single, options);
-%[~,lambda,a_plus,r_final] =findK(K_ss,beta_final);
-findK(4.1858,0.9052);
-%fprintf("\n heterogenuous agent economy: discount factor = %.2f, interest rate = %.3f \n",beta_final, r_final);
+beta_final = fzero(@(beta) findK(K_ss,beta), 0.9052, options);
+[~,lambda,a_plus,r_final,c_opt] =findK(K_ss,beta_final);
+%findK(4.1858,0.9052);
+fprintf("\n heterogenuous agent economy: discount factor = %.5f, interest rate = %.3f \n",beta_final, r_final);
 
 toc;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Q2: gini coefficient in Aiyagari model
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%Gini(a_plus',lambda')
-
+Gini(a_plus',lambda')
+Gini(c_opt(:)',lambda');
+YY = kron(y,ones(1,num_grid)); % augmented income matrix
+Gini(YY,lambda');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Q3: AKM 18
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-function [NetAsset, lambda, a_plus, r] = findK(K, beta)
+function [NetAsset, lambda, a_plus, r, c_opt] = findK(K, beta)
 global alpha delta At agrid y num_grid ut tol_v PP ny
 
 L = 1;
@@ -212,8 +214,8 @@ function Gini(y,S)
 %step1: generate cumulative share of people from low to high income
 % By Yifan Lyu, April, 2021
 
-y = sort(y); % sort wealth from low to high
-S = sort(S);
+[y, ind] = sort(y); % sort wealth from low to high
+S = S(ind);
 
 cumu_x = cumsum(S);
 
@@ -224,14 +226,21 @@ cumu_y = y*S';
 cumu_sy = y.*S;
 cumu_sy = cumsum(cumu_sy)/cumu_y;
 
-%step4: given we have continuum of agents, interpolate the fitted line
-Lorenz = @(x) interp1([0,cumu_x],[0,cumu_sy],x,'linear'); % x is the query point
+% drop the zeros in cumu_sy
+index = (cumu_sy == 0);
+cumu_sy(index) = [];
+cumu_x(index)  = [];
 
-%step5: plot Lorenz curve, make sure correct
-x = linspace(0,1,1000);
+
+%step4: given we have continuum of agents, interpolate the fitted line
+%Lorenz = @(x) interp1([0,cumu_x],[0,cumu_sy],x,'linear'); % x is the query point
+%interp_lo = griddedInterpolant([0,cumu_x],[0,cumu_sy], 'linear');
+%Lorenz = @(x) interp_lo(x);
+%step5: plot Lorenz curve
+x = linspace(0,1,length(cumu_x));
 
 figure;
-plot(x,Lorenz(x),'linewidth',1.5);
+plot([0, cumu_x],[0, cumu_sy],'linewidth',1.5);
 hold on
 plot([0,1],[0,1],'linewidth',1.5)
 legend('Lorenz Curve','45 degree line');
@@ -243,6 +252,10 @@ set(gca, 'FontName', 'times')
 xlabel('people by percentile of weath holding');
 ylabel('cumulative share of wealth');
 %print('-dpdf',['/Users/frankdemacbookpro/Dropbox/SSE/Macro II/HW5/giniplot.pdf']);
+
+[cumu_x, ind] = unique(cumu_x);
+cumu_sy = cumu_sy(ind);
+Lorenz = @(x) interp1([0,cumu_x],[0,cumu_sy],x,'linear'); % x is the query point
 
 
 %step6: calcualte gini coefficient, using intergation
