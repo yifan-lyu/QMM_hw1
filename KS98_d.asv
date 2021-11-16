@@ -257,7 +257,7 @@ sim.w       = nan(1,T);
 sim.A       = nan(1,T); % state index of technology
 sim.A(1) = sum(( sim.rand_A(1) > cumsum(P_A(1,:)) )) + 1;
 sim.S       = nan(I,T); % state index of income
-sim.S(:,1)  = kron((1:ny)',ones(I/ny,1));
+sim.S(:,1)  = kron([1:ny]',ones(I/ny,1));
 
 sim.K       = [K_ss, nan(1,T-1)];
 sim.r       = nan(1,T);
@@ -321,9 +321,9 @@ sta.ct = sim.ct(:,300:end);
 sta.yt = sim.yt(:,300:end);
 sta.at = sim.at(:,300:end);
 
-% find Gini for asset (c - 0.240, y - 0.187, a - 0.784)
-model.Gini(sta.ct(:)',ones(1,numel(sta.ct))/numel(sta.ct));
-model.Gini(sta.yt(:)',ones(1,numel(sta.yt))/numel(sta.yt));
-model.Gini(sta.at(:)',ones(1,numel(sta.at))/numel(sta.at));
+% find Gini for asset (0.778)
+model.Gini(sta.ct(:)',ones(1,numel(sta.ct))/numel(sta.ct))
+model.Gini(sta.yt(:)',ones(1,numel(s.yt))/numel(sta.yt))
+model.Gini(sim.at(:)',ones(1,numel(sim.at))/numel(sta.at))
 
 
